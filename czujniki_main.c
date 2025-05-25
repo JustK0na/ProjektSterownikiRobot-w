@@ -49,6 +49,12 @@
 #define GYRO_CS_PIN       GPIO_PIN_1
 #define GYRO_CS_PORT      GPIOC
 
+#define ADXL345_ADDR        (0x53 << 1) // 7-bit address shifted for HAL
+#define ADXL345_DEVID_REG   0x00
+#define ADXL345_POWER_CTL   0x2D
+#define ADXL345_DATA_FORMAT 0x31
+#define ADXL345_DATAX0      0x32
+
 #define gyro_x sensordata[0]
 #define gyro_y sensordata[1]
 #define gyro_z sensordata[2]
@@ -102,6 +108,31 @@ uint8_t Gyro_ReadReg(uint8_t reg);
  * @param length lenght of the buffer
  */
 void Gyro_ReadRegs(uint8_t reg, uint8_t* buffer, uint8_t length);
+
+/**
+ * @brief Accelerometer initialization
+ */
+void ADXL345_Init(void);
+/**
+ * @brief Read and convert accelerometer data
+ * @param x accelerometer's reading on X axis [g]
+ * @param y accelerometer's reading on Y axis [g]
+ * @param z accelerometer's reading on Z axis [g]
+ */
+void ADXL345_ReadAccel(float* x, float* y, float* z);
+/**
+ * @brief Write to accelerometer register
+ * @param reg register's index
+ * @param data data to be written into the register
+ */
+void ADXL345_Write(uint8_t reg, uint8_t data);
+/**
+ * @brief Read from accelerometer's given register
+ * @param reg register's index
+ * @param buffer where the multiple-bytes data is stored
+ * @param length lenght of the buffer
+ */
+void ADXL345_Read(uint8_t reg, uint8_t* buffer, uint8_t length);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -174,6 +205,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
+      ADXL345_ReadAccel(&acc_x, &acc_y, &acc_z);
 
    	  HAL_Delay(dt);
   }
@@ -235,14 +267,6 @@ void Gyro_Init(void){
     Gyro_WriteReg(0x23, 0x20);
 }
 
-// Write to gyroscope register
-void Gyro_WriteReg(uint8_t reg, uint8_t data){
-    uint8_t tx[2] = {reg, data};
-    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi5, tx, 2, HAL_MAX_DELAY);
-    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_SET);
-}
-
 // Read from gyroscope register
 uint8_t Gyro_ReadReg(uint8_t reg){
     uint8_t tx = reg | 0x80;
@@ -281,6 +305,38 @@ void Gyro_ReadData(float* x, float* y, float* z){
     *z = rawZ * sensitivity / 1000.0f;
 }
 
+void ADXL345_Init(void){
+    uint8_t id;
+    ADXL345_Read(ADXL345_DEVID_REG, &id, 1);
+    if (id != 0x8)
+    {
+        // Handle error
+        while (1);
+    }
+
+    ADXL345_Write(ADXL345_POWER_CTL, 0x08);      // Set measure bit
+    ADXL345_Write(ADXL345_DATA_FORMAT, 0x00);    // Set range to ±2g
+}
+
+void ADXL345_ReadAccel(float* x, float* y, float* z){
+    uint8_t buffer[6];
+    int16_t rawX, rawY, rawZ;
+    float sensitivity = 0.004f; // 4 mg/LSB
+
+    ADXL345_Read(ADXL345_DATAX0, buffer, 6);
+
+    rawX = (int16_t)(buffer[1] << 8 | buffer[0]);
+    rawY = (int16_t)(buffer[3] << 8 | buffer[2]);
+    rawZ = (int16_t)(buffer[5] << 8 | buffer[4]);
+
+    *x = rawX * sensitivity;
+    *y = rawY * sensitivity;
+    *z = rawZ * sensitivity;
+}
+
+void ADXL345_Read(uint8_t reg, uint8_t* buffer, uint8_t length){
+    HAL_I2C_Mem_Read(&hi2c3, ADXL345_ADDR, reg, 1, buffer, length, HAL_MAX_DELAY);
+}
 /* USER CODE END 4 */
 
 /**
