@@ -285,6 +285,14 @@ void Gyro_Init(void){
     Gyro_WriteReg(0x23, 0x20);
 }
 
+// Write to gyroscope register
+void Gyro_WriteReg(uint8_t reg, uint8_t data){
+    uint8_t tx[2] = {reg, data};
+    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_RESET);
+    HAL_SPI_Transmit(&hspi5, tx, 2, HAL_MAX_DELAY);
+    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_SET);
+}
+
 // Read from gyroscope register
 uint8_t Gyro_ReadReg(uint8_t reg){
     uint8_t tx = reg | 0x80;
@@ -354,6 +362,10 @@ void ADXL345_ReadAccel(float* x, float* y, float* z){
 
 void ADXL345_Read(uint8_t reg, uint8_t* buffer, uint8_t length){
     HAL_I2C_Mem_Read(&hi2c3, ADXL345_ADDR, reg, 1, buffer, length, HAL_MAX_DELAY);
+}
+
+void ADXL345_Write(uint8_t reg, uint8_t data){
+    HAL_I2C_Mem_Write(&hi2c3, ADXL345_ADDR, reg, 1, &data, 1, HAL_MAX_DELAY);
 }
 /* USER CODE END 4 */
 
