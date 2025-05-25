@@ -186,6 +186,14 @@ int main(void)
   float acc_roll, acc_pitch;
   float dt = 0.1f; // 10ms loop // 100ms
   float alpha = 0.98f;
+  // kompensacja odchyleń żyro
+  float biasX = 0, biasY = 0, biasZ = 0;
+  for (int i = 0; i < 1000; ++i) {
+	  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
+      biasX += gyro_x; biasY += gyro_y; biasZ += gyro_z;
+      HAL_Delay(1);
+  }
+  biasX /= 1000.0f; biasY /= 1000.0f; biasZ /= 1000.0f;
 
   /* USER CODE END 2 */
 
@@ -207,12 +215,15 @@ int main(void)
 	  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
       ADXL345_ReadAccel(&acc_x, &acc_y, &acc_z);
 
+      gyro_x -= biasX;
+	  gyro_y -= biasY;
+	  gyro_z -= biasZ;
       acc_pitch = atan2f(-acc_x, sqrtf(acc_y*acc_y + acc_z*acc_z)) * 180.0f / M_PI;
 	  acc_roll = atan2f(acc_y, acc_z) * 180.0f / M_PI;
 
 	  pitch = alpha * (pitch + gyro_x * dt) + (1 - alpha) * acc_pitch;
 	  roll  = alpha * (roll  + gyro_y * dt) + (1 - alpha) * acc_roll;
-      yaw  += gyro_z * dt;
+      // yaw  += gyro_z * dt; // niepotrzebny
 
    	  HAL_Delay(dt);
   }
