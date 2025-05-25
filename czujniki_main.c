@@ -207,6 +207,13 @@ int main(void)
 	  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
       ADXL345_ReadAccel(&acc_x, &acc_y, &acc_z);
 
+      acc_pitch = atan2f(-acc_x, sqrtf(acc_y*acc_y + acc_z*acc_z)) * 180.0f / M_PI;
+	  acc_roll = atan2f(acc_y, acc_z) * 180.0f / M_PI;
+
+	  pitch = alpha * (pitch + gyro_x * dt) + (1 - alpha) * acc_pitch;
+	  roll  = alpha * (roll  + gyro_y * dt) + (1 - alpha) * acc_roll;
+      yaw  += gyro_z * dt;
+
    	  HAL_Delay(dt);
   }
   /* USER CODE END 3 */
