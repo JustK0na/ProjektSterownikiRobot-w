@@ -34,7 +34,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stm32f4xx_hal.h"
-#include <stdio.h>
+#include "gyro.h"
+#include "acc_ADXL345.h"
 #include <string.h>
 #include <math.h>
 /* USER CODE END Includes */
@@ -46,15 +47,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define GYRO_CS_PIN       GPIO_PIN_1
-#define GYRO_CS_PORT      GPIOC
-
-#define ADXL345_ADDR        (0x53 << 1) // 7-bit address shifted for HAL
-#define ADXL345_DEVID_REG   0x00
-#define ADXL345_POWER_CTL   0x2D
-#define ADXL345_DATA_FORMAT 0x31
-#define ADXL345_DATAX0      0x32
-
 #define gyro_x sensordata[0]
 #define gyro_y sensordata[1]
 #define gyro_z sensordata[2]
@@ -71,8 +63,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-/*** WDS ***/
-static uint8_t uart_tx_frame[FRAME_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,59 +70,11 @@ void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 /**
- * @brief Gyroscope initialization
+ * @brief Take 1st second after start to calculate gyroscope's biases
+ * @param sensordata table of data read from gyroscope and accelerometer; gyro: X:0, Y:1, Z:2
+ * @retval table [3] of gyroscope's biases on each axis; 0:X, 1:Y, 2:Z
  */
-void Gyro_Init(void);
-/**
- * @brief Read and convert gyroscope data
- * @param x gyroscope's reading on X axis [g]
- * @param y gyroscope's reading on Y axis [g]
- * @param z gyroscope's reading on Z axis [g]
- */
-void Gyro_ReadData(float* x, float* y, float* z);
-/**
- * @brief Write to gyroscope register
- * @param reg register's index
- * @param data data to be written into the register
- */
-void Gyro_WriteReg(uint8_t reg, uint8_t data);
-/**
- * @brief Read from gyroscope register
- * @param reg register's index
- */
-uint8_t Gyro_ReadReg(uint8_t reg);
-/**
- * @brief Read multiple bytes from gyroscope
- * @param reg register's index
- * @param buffer where the multiple-bytes data is stored
- * @param length lenght of the buffer
- */
-void Gyro_ReadRegs(uint8_t reg, uint8_t* buffer, uint8_t length);
-
-/**
- * @brief Accelerometer initialization
- */
-void ADXL345_Init(void);
-/**
- * @brief Read and convert accelerometer data
- * @param x accelerometer's reading on X axis [g]
- * @param y accelerometer's reading on Y axis [g]
- * @param z accelerometer's reading on Z axis [g]
- */
-void ADXL345_ReadAccel(float* x, float* y, float* z);
-/**
- * @brief Write to accelerometer register
- * @param reg register's index
- * @param data data to be written into the register
- */
-void ADXL345_Write(uint8_t reg, uint8_t data);
-/**
- * @brief Read from accelerometer's given register
- * @param reg register's index
- * @param buffer where the multiple-bytes data is stored
- * @param length lenght of the buffer
- */
-void ADXL345_Read(uint8_t reg, uint8_t* buffer, uint8_t length);
+float* Gyro_CountBias(float sensordata[]);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -186,15 +128,8 @@ int main(void)
   float acc_roll, acc_pitch;
   float dt = 0.1f; // 10ms loop // 100ms
   float alpha = 0.98f;
-  // kompensacja odchyleń żyro
-  float biasX = 0, biasY = 0, biasZ = 0;
-  for (int i = 0; i < 1000; ++i) {
-	  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
-      biasX += gyro_x; biasY += gyro_y; biasZ += gyro_z;
-      HAL_Delay(1);
-  }
-  biasX /= 1000.0f; biasY /= 1000.0f; biasZ /= 1000.0f;
-
+  /// kompensacja odchyleń żyro
+  float* gyro_bias; gyro_bias = Gyro_CountBias(sensordata);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */
@@ -213,19 +148,19 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
-      ADXL345_ReadAccel(&acc_x, &acc_y, &acc_z);
+    ADXL345_ReadAccel(&acc_x, &acc_y, &acc_z);
 
-      gyro_x -= biasX;
-	  gyro_y -= biasY;
-	  gyro_z -= biasZ;
-      acc_pitch = atan2f(-acc_x, sqrtf(acc_y*acc_y + acc_z*acc_z)) * 180.0f / M_PI;
+    gyro_x -= gyro_bias[0];
+	  gyro_y -= gyro_bias[1];
+	  gyro_z -= gyro_bias[2];
+    acc_pitch = atan2f(-acc_x, sqrtf(acc_y*acc_y + acc_z*acc_z)) * 180.0f / M_PI;
 	  acc_roll = atan2f(acc_y, acc_z) * 180.0f / M_PI;
 
 	  pitch = alpha * (pitch + gyro_x * dt) + (1 - alpha) * acc_pitch;
 	  roll  = alpha * (roll  + gyro_y * dt) + (1 - alpha) * acc_roll;
       // yaw  += gyro_z * dt; // niepotrzebny
 
-   	  HAL_Delay(dt);
+   	HAL_Delay(dt);
   }
   /* USER CODE END 3 */
 }
@@ -276,96 +211,17 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+float* Gyro_CountBias(float sensordata[]){
+	static float bias[3];
+	for (int i = 0; i < 1000; ++i) {
+		  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
+	      bias[0] += gyro_x; bias[1] += gyro_y; bias[2] += gyro_z;
+	      HAL_Delay(1);
+	  }
+	for(int j=0; j<3; j++)
+	  bias[j] /= 1000.0f;
 
-// Gyroscope initialization
-void Gyro_Init(void){
-    // CTRL_REG1: 0x0F = Normal mode, all axes enabled, 95 Hz ODR
-    Gyro_WriteReg(0x20, 0x0F);
-    // CTRL_REG4: 0x20 = 2000 dps full scale
-    Gyro_WriteReg(0x23, 0x20);
-}
-
-// Write to gyroscope register
-void Gyro_WriteReg(uint8_t reg, uint8_t data){
-    uint8_t tx[2] = {reg, data};
-    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi5, tx, 2, HAL_MAX_DELAY);
-    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_SET);
-}
-
-// Read from gyroscope register
-uint8_t Gyro_ReadReg(uint8_t reg){
-    uint8_t tx = reg | 0x80;
-    uint8_t rx = 0;
-    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi5, &tx, 1, HAL_MAX_DELAY);
-    HAL_SPI_Receive(&hspi5, &rx, 1, HAL_MAX_DELAY);
-    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_SET);
-    return rx;
-}
-
-// Read multiple bytes from gyroscope
-void Gyro_ReadRegs(uint8_t reg, uint8_t* buffer, uint8_t length){
-    uint8_t tx = reg | 0xC0; // Set auto-increment and read bits
-    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi5, &tx, 1, HAL_MAX_DELAY);
-    HAL_SPI_Receive(&hspi5, buffer, length, HAL_MAX_DELAY);
-    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_SET);
-}
-
-// Read and convert gyroscope data
-void Gyro_ReadData(float* x, float* y, float* z){
-    uint8_t buffer[6];
-    int16_t rawX, rawY, rawZ;
-    float sensitivity = 70.0f; // Sensitivity for 2000 dps full scale
-
-    Gyro_ReadRegs(0x28, buffer, 6);
-
-    rawX = (int16_t)(buffer[1] << 8 | buffer[0]);
-    rawY = (int16_t)(buffer[3] << 8 | buffer[2]);
-    rawZ = (int16_t)(buffer[5] << 8 | buffer[4]);
-
-    // LSB * mg/LSB / 1000 = g
-    *x = rawX * sensitivity / 1000.0f;
-    *y = rawY * sensitivity / 1000.0f;
-    *z = rawZ * sensitivity / 1000.0f;
-}
-
-void ADXL345_Init(void){
-    uint8_t id;
-    ADXL345_Read(ADXL345_DEVID_REG, &id, 1);
-    if (id != 0x8)
-    {
-        // Handle error
-        while (1);
-    }
-
-    ADXL345_Write(ADXL345_POWER_CTL, 0x08);      // Set measure bit
-    ADXL345_Write(ADXL345_DATA_FORMAT, 0x00);    // Set range to ±2g
-}
-
-void ADXL345_ReadAccel(float* x, float* y, float* z){
-    uint8_t buffer[6];
-    int16_t rawX, rawY, rawZ;
-    float sensitivity = 0.004f; // 4 mg/LSB
-
-    ADXL345_Read(ADXL345_DATAX0, buffer, 6);
-
-    rawX = (int16_t)(buffer[1] << 8 | buffer[0]);
-    rawY = (int16_t)(buffer[3] << 8 | buffer[2]);
-    rawZ = (int16_t)(buffer[5] << 8 | buffer[4]);
-
-    *x = rawX * sensitivity;
-    *y = rawY * sensitivity;
-    *z = rawZ * sensitivity;
-}
-
-void ADXL345_Read(uint8_t reg, uint8_t* buffer, uint8_t length){
-    HAL_I2C_Mem_Read(&hi2c3, ADXL345_ADDR, reg, 1, buffer, length, HAL_MAX_DELAY);
-}
-
-void ADXL345_Write(uint8_t reg, uint8_t data){
-    HAL_I2C_Mem_Write(&hi2c3, ADXL345_ADDR, reg, 1, &data, 1, HAL_MAX_DELAY);
+	return bias;
 }
 /* USER CODE END 4 */
 
