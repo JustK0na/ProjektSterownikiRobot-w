@@ -1,0 +1,12 @@
+../Core/Src/main.c:102:6:draw_maze	4
+../Core/Src/main.c:114:6:draw_ball	1
+../Core/Src/main.c:132:5:main	2
+../Core/Src/main.c:203:6:SystemClock_Config	4
+../Core/Src/main.c:256:13:MX_DMA2D_Init	3
+../Core/Src/main.c:293:13:MX_I2C3_Init	4
+../Core/Src/main.c:341:13:MX_LTDC_Init	4
+../Core/Src/main.c:423:13:MX_SPI5_Init	2
+../Core/Src/main.c:461:13:MX_USART1_UART_Init	2
+../Core/Src/main.c:490:13:MX_FMC_Init	2
+../Core/Src/main.c:541:13:MX_GPIO_Init	1
+../Core/Src/main.c:581:6:Error_Handler	1
