@@ -92,10 +92,52 @@ uint8_t maze1[MAZE_HEIGHT][MAZE_WIDTH] = {
   {1,3,0,1,0,0,0,0,0,0,0,1},
   {1,3,0,1,1,1,1,1,0,3,0,1},
   {1,3,0,0,0,0,1,3,3,1,0,1},
-  {1,1,1,0,1,0,0,0,3,1,0,1},
-  {1,0,0,0,1,0,1,3,3,1,0,1},
+  {1,1,1,0,1,0,0,0,3,3,0,1},
+  {1,0,0,0,1,0,1,3,3,3,0,1},
   {1,1,1,1,1,1,1,1,1,1,2,1},
 };
+
+
+uint8_t maze2[MAZE_HEIGHT][MAZE_WIDTH] = {
+	{1,1,1,1,1,1,1,1,1,1,1,1},
+	{1,0,0,0,0,1,0,0,0,0,2,1},
+	{1,0,2,1,0,1,0,1,1,1,1,1},
+	{1,0,1,3,0,1,0,0,0,0,0,1},
+	{1,0,1,0,0,1,1,1,1,1,0,1},
+	{1,0,1,0,0,0,0,0,0,1,0,1},
+	{1,0,1,1,1,1,1,1,0,1,0,1},
+	{1,0,0,0,0,0,0,1,0,1,0,1},
+	{1,1,1,1,1,1,0,1,0,1,0,1},
+	{1,0,0,0,0,1,0,1,0,1,0,1},
+	{1,0,1,1,0,1,0,1,0,1,0,1},
+	{1,0,3,0,0,1,0,1,0,1,0,1},
+	{1,1,1,1,1,1,0,1,0,1,0,1},
+	{1,0,0,0,0,0,0,1,0,0,0,1},
+	{1,0,1,1,1,1,1,1,1,1,0,1},
+	{1,1,1,1,1,1,1,1,1,1,1,1},
+};
+
+
+uint8_t maze3[MAZE_HEIGHT][MAZE_WIDTH] = {
+	{1,1,1,1,1,1,1,1,1,1,1,1},
+	{1,0,0,0,0,0,0,0,0,0,2,1},
+	{1,0,2,1,1,1,1,1,1,0,1,1},
+	{1,0,1,3,3,0,0,0,1,0,0,1},
+	{1,0,1,0,1,1,1,0,1,1,0,1},
+	{1,0,1,0,1,3,1,0,0,1,0,1},
+	{1,0,0,0,1,0,1,1,0,1,0,1},
+	{1,0,1,1,1,0,1,3,0,1,0,1},
+	{1,0,1,1,0,0,0,0,1,1,0,1},
+	{1,0,0,0,0,1,1,1,1,3,0,1},
+	{1,3,0,1,0,0,0,0,0,3,0,1},
+	{1,3,0,1,1,1,1,1,0,3,0,1},
+	{1,3,0,0,0,0,1,3,3,1,0,1},
+	{1,1,1,0,1,0,0,0,3,1,0,1},
+	{1,0,0,0,1,0,1,3,3,1,0,1},
+	{1,1,1,1,1,1,1,1,1,1,1,1},
+};
+
+
 uint8_t ballSprite[CELL_SIZE][CELL_SIZE] = {
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -177,13 +219,24 @@ void draw_maze(const uint8_t maze_data[MAZE_HEIGHT][MAZE_WIDTH])
 	    }
 }
 
+void wait_for_user_button(void) {
+    while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET);
+    HAL_Delay(200);
+    while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_RESET);
+    HAL_Delay(200);
+}
 
+void reset_ball_position(Ball *ball) {
+    ball->x_px = 1 * CELL_SIZE + CELL_SIZE / 2;
+    ball->y_px = 1 * CELL_SIZE + CELL_SIZE / 2;
+    update_ball_tile_position(ball);
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 Ball ball = {.x_px = 1 * CELL_SIZE + CELL_SIZE / 2, .y_px = 1 * CELL_SIZE + CELL_SIZE / 2,};
-const uint8_t (*currentMaze)[MAZE_WIDTH] = maze1;
+const uint8_t (*currMaze)[MAZE_WIDTH] = maze1;
 
 /* USER CODE END 0 */
 
@@ -238,6 +291,7 @@ int main(void)
 
   GameState currentGameState = GAME_RUNNING;
   uint8_t currTile = 0;
+  uint8_t currLevel = 0;
 
   while (1)
   {
@@ -255,7 +309,7 @@ int main(void)
 	   * ###########################
 	   * */
 
-	  currTile = currentMaze[ball.tile_y][ball.tile_x];
+	  currTile = currMaze[ball.tile_y][ball.tile_x];
 
 	  if (currTile == 2) {
 	      currentGameState = GAME_WIN;
@@ -274,20 +328,20 @@ int main(void)
 	  	   * */
 
 	  if(currentGameState == GAME_RUNNING){
-		 draw_maze(currentMaze);
-		 float vx = 0.2f;
-		 float vy = 0.2f;
+		 draw_maze(currMaze);
+		 float vx = 1.0f;
+		 float vy = 1.0f;
 
 		 float new_x = ball.x_px + vx;
 		 int next_tile_x = (int)(new_x / CELL_SIZE);
-		 if (currentMaze[ball.tile_y][next_tile_x] != 1) {
+		 if (currMaze[ball.tile_y][next_tile_x] != 1) {
 		     ball.x_px = new_x;
 		 }
 
 
 		 float new_y = ball.y_px + vy;
 		 int next_tile_y = (int)(new_y / CELL_SIZE);
-		 if (currentMaze[next_tile_y][ball.tile_x] != 1) {
+		 if (currMaze[next_tile_y][ball.tile_x] != 1) {
 		     ball.y_px = new_y;
 		 }
 
@@ -298,13 +352,45 @@ int main(void)
 		  BSP_LCD_Clear(LCD_COLOR_RED);
 		  BSP_LCD_SetTextColor(LCD_COLOR_RED);
 		  BSP_LCD_DisplayStringAt(0, LINE(5), (uint8_t *)"YOU LOSE!", CENTER_MODE);
-		  break;
+		  BSP_LCD_DisplayStringAt(0, LINE(6), (uint8_t *)"Press button", CENTER_MODE);
+		  BSP_LCD_DisplayStringAt(0, LINE(7), (uint8_t *)"to restart", CENTER_MODE);
+		  wait_for_user_button();
+		  reset_ball_position(&ball);
+		  currentGameState = GAME_RUNNING;
 	  }
 	  else{
 		  BSP_LCD_Clear(LCD_COLOR_GREEN);
 		  BSP_LCD_SetTextColor(LCD_COLOR_GREEN);
 		  BSP_LCD_DisplayStringAt(0, LINE(5), (uint8_t *)"YOU WIN!", CENTER_MODE);
-		  break;
+		  BSP_LCD_DisplayStringAt(0, LINE(6), (uint8_t *)"Press button", CENTER_MODE);
+		  BSP_LCD_DisplayStringAt(0, LINE(7), (uint8_t *)"to advance", CENTER_MODE);
+		  wait_for_user_button();
+
+
+		  currLevel = (currLevel + 1) % 3;
+		  switch (currLevel) {
+		          case 0: currMaze = maze1;
+		          	  	  BSP_LCD_Clear(LCD_COLOR_GREEN);
+		          	  	  BSP_LCD_SetTextColor(LCD_COLOR_GREEN);
+		          	  	  BSP_LCD_DisplayStringAt(0, LINE(5), (uint8_t *)"Level 1", CENTER_MODE);
+		          	  	  HAL_Delay(1000);
+		          	  	  break;
+		          case 1: currMaze = maze2;
+		          	  	  BSP_LCD_Clear(LCD_COLOR_GREEN);
+		          	  	  BSP_LCD_SetTextColor(LCD_COLOR_GREEN);
+		          	  	  BSP_LCD_DisplayStringAt(0, LINE(5), (uint8_t *)"Level 2", CENTER_MODE);
+		          	  	  HAL_Delay(1000);
+		          	  	  break;
+		          case 2: currMaze = maze3;
+		          	  	  BSP_LCD_Clear(LCD_COLOR_GREEN);
+		          	  	  BSP_LCD_SetTextColor(LCD_COLOR_GREEN);
+		          	  	  BSP_LCD_DisplayStringAt(0, LINE(5), (uint8_t *)"Level 3", CENTER_MODE);
+		          	  	  HAL_Delay(1000);
+		          	  	  break;
+		  }
+
+		  reset_ball_position(&ball);
+		  currentGameState = GAME_RUNNING;
 	  }
 
 
@@ -677,6 +763,12 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : B1_Pin */
+  GPIO_InitStruct.Pin = B1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LD3_Pin */
   GPIO_InitStruct.Pin = LD3_Pin;
