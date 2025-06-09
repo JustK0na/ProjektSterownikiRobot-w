@@ -89,7 +89,7 @@ main-build: SRLCD.elf secondary-outputs
 
 # Tool invocations
 SRLCD.elf SRLCD.map: $(OBJS) $(USER_OBJS) /home/ai-thigs/STM32CubeIDE/workspace_1.18.1/SRLCD/STM32F429ZITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "SRLCD.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/home/ai-thigs/STM32CubeIDE/workspace_1.18.1/SRLCD/STM32F429ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="SRLCD.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+	arm-none-eabi-gcc -o "SRLCD.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/home/ai-thigs/STM32CubeIDE/workspace_1.18.1/SRLCD/STM32F429ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="SRLCD.map" -Wl,--gc-sections -static -u_printf_float --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
