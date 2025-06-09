@@ -37,12 +37,9 @@
 #define FRAMEBUFFER ((uint16_t *)0xD0000000)
 #define MAZE_WIDTH 12
 #define MAZE_HEIGHT 16
-
-
 #define CELL_SIZE 20
-#define BALL_RADIUS 6
-#define MAZE_ORIGIN_X 20
-#define MAZE_ORIGIN_Y 20
+#define MAZE_ORIGIN_X 0
+#define MAZE_ORIGIN_Y 0
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -64,6 +61,63 @@ UART_HandleTypeDef huart1;
 SDRAM_HandleTypeDef hsdram1;
 
 /* USER CODE BEGIN PV */
+typedef struct {
+	float x_px;
+	float y_px;
+	uint8_t tile_x;// column
+	uint8_t tile_y;// row
+} Ball;
+
+typedef enum {
+    GAME_RUNNING,
+    GAME_WIN,
+    GAME_LOSE
+} GameState;
+
+/*0 nothing
+  1 wall
+  2 goal
+  3 danger*/
+uint8_t maze1[MAZE_HEIGHT][MAZE_WIDTH] = {
+  {1,0,1,1,1,1,1,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,1,1,1,1,1,1,1,1,0,1},
+  {1,0,0,0,1,0,0,0,1,3,0,1},
+  {1,0,1,1,1,1,0,0,0,3,0,1},
+  {1,0,1,0,1,0,0,1,1,3,0,1},
+  {1,0,0,0,3,1,0,0,0,3,0,1},
+  {1,0,1,1,1,1,0,1,1,3,0,1},
+  {1,0,1,1,0,0,0,0,1,3,0,1},
+  {1,0,0,0,0,1,1,1,1,3,0,1},
+  {1,3,0,1,0,0,0,0,0,0,0,1},
+  {1,3,0,1,1,1,1,1,0,3,0,1},
+  {1,3,0,0,0,0,1,3,3,1,0,1},
+  {1,1,1,0,1,0,0,0,3,1,0,1},
+  {1,0,0,0,1,0,1,3,3,1,0,1},
+  {1,1,1,1,1,1,1,1,1,1,2,1},
+};
+uint8_t ballSprite[CELL_SIZE][CELL_SIZE] = {
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0},
+  {0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
+  {0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
+  {0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+};
 
 /* USER CODE END PV */
 
@@ -77,12 +131,59 @@ static void MX_LTDC_Init(void);
 static void MX_SPI5_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
+void update_ball_tile_position(Ball *ball) {
+    ball->tile_x = (uint8_t)(ball->x_px / CELL_SIZE);
+    ball->tile_y = (uint8_t)(ball->y_px / CELL_SIZE);
+}
+void draw_cell(uint8_t tile_x, uint8_t tile_y, uint32_t color)
+{
+    BSP_LCD_SetTextColor(color);
+    BSP_LCD_FillRect(
+        MAZE_ORIGIN_X + tile_x * CELL_SIZE,
+        MAZE_ORIGIN_Y + tile_y * CELL_SIZE,
+        CELL_SIZE,
+        CELL_SIZE
+    );
+}
+void draw_ballSprite(float x_px, float y_px)
+{
+	int top_left_x = (int)(x_px - CELL_SIZE / 2);
+	int top_left_y = (int)(y_px - CELL_SIZE / 2);
+
+	for (int py = 0; py < CELL_SIZE; py++) {
+		for (int px = 0; px < CELL_SIZE; px++) {
+			if (ballSprite[py][px] == 1) {
+				BSP_LCD_DrawPixel(top_left_x + px, top_left_y + py, LCD_COLOR_YELLOW);
+	        }
+	    }
+	}
+}
+void draw_maze(const uint8_t maze_data[MAZE_HEIGHT][MAZE_WIDTH])
+{
+	for (int y = 0; y < MAZE_HEIGHT; y++) {
+	        for (int x = 0; x < MAZE_WIDTH; x++) {
+	        	uint32_t color;
+
+	        	switch (maze_data[y][x]) {
+	        	case 0:  color = LCD_COLOR_BLACK; break;
+	        	case 1:  color = LCD_COLOR_DARKBLUE; break;
+	        	case 2:  color = LCD_COLOR_GREEN; break;
+	        	case 3:  color = LCD_COLOR_RED; break;
+	        	default: color = LCD_COLOR_WHITE; break;
+	        	}
+
+	        	draw_cell(x, y, color);
+	        }
+	    }
+}
 
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+Ball ball = {.x_px = 1 * CELL_SIZE + CELL_SIZE / 2, .y_px = 1 * CELL_SIZE + CELL_SIZE / 2,};
+const uint8_t (*currentMaze)[MAZE_WIDTH] = maze1;
 
 /* USER CODE END 0 */
 
@@ -127,23 +228,90 @@ int main(void)
   BSP_LCD_SelectLayer(LCD_BACKGROUND_LAYER);
   BSP_LCD_DisplayOn();
   BSP_LCD_Clear(LCD_COLOR_BLACK);
+
+
+  update_ball_tile_position(&ball);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  draw_maze();
-  draw_ball(&ball);
+
+  GameState currentGameState = GAME_RUNNING;
+  uint8_t currTile = 0;
+
   while (1)
   {
 	  HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-	  HAL_Delay(500);
-
-
+	  HAL_Delay(17);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  BSP_LCD_SetTextColor(LCD_COLOR_CYAN);
-	  BSP_LCD_DisplayStringAtLine(1, (uint8_t *)"text");
+//	  BSP_LCD_SetTextColor(LCD_COLOR_CYAN);
+//	  BSP_LCD_DisplayStringAtLine(1, (uint8_t *)"text");
+
+	  /*
+	   * ###########################
+	   * ####  GAME STATE CHECK  ###
+	   * ###########################
+	   * */
+
+	  currTile = currentMaze[ball.tile_y][ball.tile_x];
+
+	  if (currTile == 2) {
+	      currentGameState = GAME_WIN;
+	  }
+	  else if(currTile == 3){
+		  currentGameState = GAME_LOSE;
+	  }
+	  else{
+	  	  currentGameState = GAME_RUNNING;
+	  }
+
+	  /*
+	  	   * ###########################
+	  	   * ######### GAME LOGIC  #####
+	  	   * ###########################
+	  	   * */
+
+	  if(currentGameState == GAME_RUNNING){
+		 draw_maze(currentMaze);
+		 float vx = 0.2f;
+		 float vy = 0.2f;
+
+		 float new_x = ball.x_px + vx;
+		 int next_tile_x = (int)(new_x / CELL_SIZE);
+		 if (currentMaze[ball.tile_y][next_tile_x] != 1) {
+		     ball.x_px = new_x;
+		 }
+
+
+		 float new_y = ball.y_px + vy;
+		 int next_tile_y = (int)(new_y / CELL_SIZE);
+		 if (currentMaze[next_tile_y][ball.tile_x] != 1) {
+		     ball.y_px = new_y;
+		 }
+
+		 update_ball_tile_position(&ball);
+		 draw_ballSprite(ball.x_px, ball.y_px);
+	  }
+	  else if(currentGameState == GAME_LOSE){
+		  BSP_LCD_Clear(LCD_COLOR_RED);
+		  BSP_LCD_SetTextColor(LCD_COLOR_RED);
+		  BSP_LCD_DisplayStringAt(0, LINE(5), (uint8_t *)"YOU LOSE!", CENTER_MODE);
+		  break;
+	  }
+	  else{
+		  BSP_LCD_Clear(LCD_COLOR_GREEN);
+		  BSP_LCD_SetTextColor(LCD_COLOR_GREEN);
+		  BSP_LCD_DisplayStringAt(0, LINE(5), (uint8_t *)"YOU WIN!", CENTER_MODE);
+		  break;
+	  }
+
+
+
+
+
+
   }
   /* USER CODE END 3 */
 }
