@@ -5,8 +5,8 @@
  *      Author: Matylda Odrowąż-Wilkońska
  */
 
-#ifndef SRC_GYRO_H_
-#define SRC_GYRO_H_
+#ifndef INC_GYRO_H_
+#define INC_GYRO_H_
 
 #include <stdint.h>
 #include "main.h"
@@ -14,6 +14,7 @@
 
 #define GYRO_CS_PIN       GPIO_PIN_1
 #define GYRO_CS_PORT      GPIOC
+#define NOISE_THRESHOLD   3.5
 
 /**
  * @brief Gyroscope initialization
@@ -45,4 +46,4 @@ uint8_t Gyro_ReadReg(uint8_t reg);
  */
 void Gyro_ReadRegs(uint8_t reg, uint8_t* buffer, uint8_t length);
 
-#endif /* SRC_GYRO_H_ */
+#endif /* INC_GYRO_H_ */

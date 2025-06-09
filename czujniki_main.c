@@ -18,16 +18,12 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_os.h"
 #include "crc.h"
-#include "dma.h"
 #include "dma2d.h"
 #include "i2c.h"
 #include "ltdc.h"
 #include "spi.h"
 #include "tim.h"
-#include "usart.h"
-#include "usb_host.h"
 #include "gpio.h"
 #include "fmc.h"
 
@@ -63,17 +59,12 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
-/**
- * @brief Take 1st second after start to calculate gyroscope's biases
- * @param sensordata table of data read from gyroscope and accelerometer; gyro: X:0, Y:1, Z:2
- * @retval table [3] of gyroscope's biases on each axis; 0:X, 1:Y, 2:Z
- */
 float* Gyro_CountBias(float sensordata[]);
 /* USER CODE END PFP */
 
@@ -90,7 +81,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
+	/* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -105,12 +96,12 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  Gyro_Init();
+  ADXL345_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_CRC_Init();
   MX_DMA2D_Init();
   MX_FMC_Init();
@@ -118,27 +109,16 @@ int main(void)
   MX_LTDC_Init();
   MX_SPI5_Init();
   MX_TIM1_Init();
-  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  Gyro_Init();
-  ADXL345_Init();
-
+  //czujniki
   float sensordata[6]; //0 gyro_x, 1 gyro_y, 2 gyro_z, 3 acc_x, 4 acc_y, 5 acc_z
-  float roll=0, pitch=0, yaw=0;
-  float acc_roll, acc_pitch;
-  float dt = 0.1f; // 10ms loop // 100ms
-  float alpha = 0.98f;
-  /// kompensacja odchyleń żyro
-  float* gyro_bias; gyro_bias = Gyro_CountBias(sensordata);
+  float roll=0, pitch=0;
+  float acc_roll, acc_pitch, alpha = 0.98f;
+  float dt = 0.1f; // 100ms loop
+  float* gyro_bias; gyro_bias = Gyro_CountBias(sensordata);   // kompensacja odchyleń żyro
+
+  uint32_t lastTick = HAL_GetTick();
   /* USER CODE END 2 */
-
-  /* Call init function for freertos objects (in cmsis_os2.c) */
-  //MX_FREERTOS_Init();
-
-  /* Start scheduler */
-  //osKernelStart();
-
-  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -147,20 +127,23 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
-    ADXL345_ReadAccel(&acc_x, &acc_y, &acc_z);
+	  uint32_t now = HAL_GetTick();
+	  dt = (now - lastTick) / 1000.0f; // in seconds
+	  lastTick = now;
 
-    gyro_x -= gyro_bias[0];
+	  // zbierz dane z czujników i oblicz kąty
+	  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
+	  ADXL345_ReadAccel(&acc_x, &acc_y, &acc_z);
+	  gyro_x -= gyro_bias[0];
 	  gyro_y -= gyro_bias[1];
 	  gyro_z -= gyro_bias[2];
-    acc_pitch = atan2f(-acc_x, sqrtf(acc_y*acc_y + acc_z*acc_z)) * 180.0f / M_PI;
+	  acc_pitch = atan2f(-acc_x, sqrtf(acc_y*acc_y + acc_z*acc_z)) * 180.0f / M_PI;
 	  acc_roll = atan2f(acc_y, acc_z) * 180.0f / M_PI;
 
-	  pitch = alpha * (pitch + gyro_x * dt) + (1 - alpha) * acc_pitch;
-	  roll  = alpha * (roll  + gyro_y * dt) + (1 - alpha) * acc_roll;
-      // yaw  += gyro_z * dt; // niepotrzebny
+	  if(gyro_x > NOISE_THRESHOLD) pitch = alpha * (pitch + gyro_x * dt) + (1 - alpha) * acc_pitch;
+	  if(gyro_y > NOISE_THRESHOLD) roll  = alpha * (roll  + gyro_y * dt) + (1 - alpha) * acc_roll;
 
-   	HAL_Delay(dt);
+   	  HAL_Delay(50);
   }
   /* USER CODE END 3 */
 }
