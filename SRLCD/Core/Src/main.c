@@ -35,13 +35,12 @@
 #include "acc_ADXL345.h"
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 #include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
-
 
 /* USER CODE END PTD */
 
@@ -55,7 +54,6 @@
 #define MAZE_ORIGIN_Y 0
 
 #define SPEED 5.5f
-
 
 #define gyro_x sensordata[0]
 #define gyro_y sensordata[1]
@@ -238,7 +236,6 @@ void reset_ball_position(Ball *ball) {
 }
 
 
-
 float* Gyro_CountBias(float sensordata[]);
 int __io_putchar(int ch);
 /* USER CODE END PFP */
@@ -267,15 +264,15 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  Gyro_Init();
-  ADXL345_Init();
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  Gyro_Init();
+  ADXL345_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -294,59 +291,53 @@ int main(void)
   BSP_LCD_DisplayOn();
   BSP_LCD_Clear(LCD_COLOR_BLACK);
 
-
   update_ball_tile_position(&ball);
+
+  float sensordata[6]; //0 gyro_x, 1 gyro_y, 2 gyro_z, 3 acc_x, 4 acc_y, 5 acc_z
+  float roll=0, pitch=0;
+  float acc_roll, acc_pitch, alpha = 0.99f;
+  float dt = 0.01f; // 10ms loop
+  float* gyro_bias; gyro_bias = Gyro_CountBias(sensordata);   // kompensacja odchyleń żyro
+
+  uint8_t currTile = 0;
+  uint8_t currLevel = 0;
+  GameState currentGameState = GAME_RUNNING;
+  uint32_t lastTick = HAL_GetTick();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-  GameState currentGameState = GAME_RUNNING;
-  uint8_t currTile = 0;
-  uint8_t currLevel = 0;
-
-
-
-  float sensordata[6]; //0 gyro_x, 1 gyro_y, 2 gyro_z, 3 acc_x, 4 acc_y, 5 acc_z
-  float roll=0, pitch=0;
-  float acc_roll, acc_pitch, alpha = 0.98f;
-  float dt = 0.1f; // 100ms loop
-  float* gyro_bias; gyro_bias = Gyro_CountBias(sensordata);   // kompensacja odchyleń żyro
-
-  uint32_t lastTick = HAL_GetTick();
-
   while (1)
   {
-	  HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-//	  HAL_Delay(17);
+    /* USER CODE END WHILE */
 
+    /* USER CODE BEGIN 3 */
+	  HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
 
 	  uint32_t now = HAL_GetTick();
 	  dt = (now - lastTick) / 1000.0f; // in seconds
 	  lastTick = now;
 
+	  /*
+	   * ##########################
+	   * #### GET ROLL & PITCH ####
+	   * ##########################
+	   * */
 	  Gyro_ReadData(&gyro_x, &gyro_y, &gyro_z);
 	  ADXL345_ReadAccel(&acc_x, &acc_y, &acc_z);
-
 	  gyro_x -= gyro_bias[0];
 	  gyro_y -= gyro_bias[1];
 	  gyro_z -= gyro_bias[2];
 	  acc_pitch = atan2f(-acc_x, sqrtf(acc_y*acc_y + acc_z*acc_z)) * 180.0f / M_PI;
-	  acc_roll = atan2f(acc_y, acc_z) * 180.0f / M_PI;
+	  acc_roll  = atan2f( acc_y, acc_z)							   * 180.0f / M_PI;
 
-//	  acc_pitch = 0;
-//	  acc_roll = 0;
-
-	  if(gyro_x > NOISE_THRESHOLD) pitch = alpha * (pitch + gyro_x * dt) + (1 - alpha) * acc_pitch;
-	  if(gyro_y > NOISE_THRESHOLD) roll  = alpha * (roll  + gyro_y * dt) + (1 - alpha) * acc_roll;
-
+	  if(abs(gyro_y) > NOISE_THRESHOLD) roll  = alpha * (roll  + gyro_y * dt) + (1 - alpha) * acc_roll;
+	  if(abs(gyro_x) > NOISE_THRESHOLD) pitch = alpha * (pitch + gyro_x * dt) + (1 - alpha) * acc_pitch;
 
 	  printf("gyro_x: [%f], \tgyro_y: [%f], \tgyro_z: [%f]\r\n", gyro_x, gyro_y, gyro_z);
 	  printf("acc_x: [%f], \tacc_y: [%f], \t acc_z: [%f]\r\n", acc_x, acc_y, acc_z);
 	  printf("roll: [%f], pitch: [%f]\r\n", roll, pitch);
-    /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
 //	  BSP_LCD_SetTextColor(LCD_COLOR_CYAN);
 //	  BSP_LCD_DisplayStringAtLine(1, (uint8_t *)"text");
 
@@ -369,15 +360,15 @@ int main(void)
 	  }
 
 	  /*
-	  	   * ###########################
-	  	   * ######### GAME LOGIC  #####
-	  	   * ###########################
-	  	   * */
+	   * ######################
+	   * ##### GAME LOGIC #####
+	   * ######################
+	   * */
 
 	  if(currentGameState == GAME_RUNNING){
 		 draw_maze(currMaze);
-		 float vx = /*roll * */SPEED;
-		 float vy = /*pitch * */SPEED;
+		 float vx = roll * SPEED;
+		 float vy = (-1)*pitch * SPEED;
 
 		 float new_x = ball.x_px + vx * dt;
 		 int next_tile_x = (int)(new_x / CELL_SIZE);
@@ -440,13 +431,8 @@ int main(void)
 		  currentGameState = GAME_RUNNING;
 	  }
 
-
 	  uint32_t frameTime = HAL_GetTick() - now;
-	  if (frameTime < 17)
-	      HAL_Delay(17 - frameTime);
-
-
-
+	  (frameTime < 10) ? HAL_Delay(10 - frameTime) : HAL_Delay(10);
   }
   /* USER CODE END 3 */
 }

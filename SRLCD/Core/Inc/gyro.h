@@ -14,7 +14,7 @@
 
 #define GYRO_CS_PIN       GPIO_PIN_1
 #define GYRO_CS_PORT      GPIOC
-#define NOISE_THRESHOLD   3.5
+#define NOISE_THRESHOLD   2.4
 
 /**
  * @brief Gyroscope initialization

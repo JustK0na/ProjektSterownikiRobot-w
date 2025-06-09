@@ -1,5 +1,0 @@
-../Core/Src/gyro.c:13:6:Gyro_Init	1
-../Core/Src/gyro.c:21:6:Gyro_WriteReg	1
-../Core/Src/gyro.c:29:9:Gyro_ReadReg	1
-../Core/Src/gyro.c:40:6:Gyro_ReadRegs	1
-../Core/Src/gyro.c:49:6:Gyro_ReadData	1
