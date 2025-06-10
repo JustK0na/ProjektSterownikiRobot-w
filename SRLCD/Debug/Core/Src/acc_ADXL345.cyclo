@@ -1,4 +1,0 @@
-../Core/Src/acc_ADXL345.c:10:6:ADXL345_Init	2
-../Core/Src/acc_ADXL345.c:23:6:ADXL345_ReadAccel	1
-../Core/Src/acc_ADXL345.c:39:6:ADXL345_Write	1
-../Core/Src/acc_ADXL345.c:43:6:ADXL345_Read	1
