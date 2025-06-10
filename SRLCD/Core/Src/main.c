@@ -35,8 +35,10 @@
 #include "acc_ADXL345.h"
 #include <string.h>
 #include <math.h>
+#include <maze.h>
 #include <stdlib.h>
 #include "stdio.h"
+#include "ball.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,11 +49,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define FRAMEBUFFER ((uint16_t *)0xD0000000)
-#define MAZE_WIDTH 12
-#define MAZE_HEIGHT 16
-#define CELL_SIZE 20
-#define MAZE_ORIGIN_X 0
-#define MAZE_ORIGIN_Y 0
 
 #define SPEED 5.5f
 
@@ -71,13 +68,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-typedef struct {
-	float x_px;
-	float y_px;
-	uint8_t tile_x;// column
-	uint8_t tile_y;// row
-} Ball;
-
 typedef enum {
     GAME_RUNNING,
     GAME_WIN,
@@ -88,98 +78,12 @@ typedef enum {
   1 wall
   2 goal
   3 danger*/
-uint8_t maze1[MAZE_HEIGHT][MAZE_WIDTH] = {
-  {1,1,1,1,1,1,1,1,1,1,1,1},
-  {1,0,0,0,1,0,0,0,0,0,0,1},
-  {1,0,1,0,1,0,1,1,1,1,0,1},
-  {1,0,1,0,0,0,0,0,0,1,0,1},
-  {1,0,1,1,1,1,1,1,0,1,1,1},
-  {1,0,0,0,0,0,0,1,0,0,0,1},
-  {1,1,1,1,1,1,0,1,1,1,0,3},
-  {1,0,0,0,3,1,0,0,0,1,0,3},
-  {1,0,1,1,0,1,1,1,0,1,0,3},
-  {1,0,1,3,0,0,0,1,0,1,0,3},
-  {1,0,1,1,1,1,0,1,0,1,0,1},
-  {1,0,0,0,0,1,0,1,0,3,0,1},
-  {1,1,1,1,0,1,0,1,0,3,0,1},
-  {1,3,0,0,0,1,0,0,0,1,0,1},
-  {1,1,1,1,1,1,1,1,1,1,2,1},
-  {1,1,1,1,1,1,1,1,1,1,1,1}
-};
-
-
-uint8_t maze2[MAZE_HEIGHT][MAZE_WIDTH] = {
-	{1,1,3,3,3,3,3,1,1,1,1,1},
-	{1,0,0,0,0,1,0,0,0,0,1,1},
-	{1,0,1,1,0,1,0,1,1,1,1,1},
-	{1,0,1,3,0,3,0,0,0,0,0,1},
-	{1,0,1,0,0,1,1,1,1,1,0,1},
-	{1,0,1,0,0,0,0,0,0,3,0,1},
-	{1,3,1,3,3,0,1,1,0,3,0,1},
-	{3,0,0,0,0,0,0,1,0,1,0,1},
-	{1,3,1,1,1,1,0,1,0,1,0,1},
-	{1,0,0,0,0,1,0,1,0,1,0,1},
-	{1,0,1,1,0,3,0,1,0,1,0,1},
-	{1,0,3,0,0,1,0,3,0,1,0,1},
-	{1,1,1,1,1,3,0,1,0,1,0,1},
-	{1,0,0,0,0,0,0,1,0,0,0,1},
-	{1,0,1,1,1,3,3,1,3,3,0,1},
-	{1,2,1,1,1,1,1,1,1,1,1,1},
-};
-
-
-uint8_t maze3[MAZE_HEIGHT][MAZE_WIDTH] = {
-	{1,1,1,1,1,1,1,1,1,1,1,1},
-	{1,0,0,0,0,3,0,0,0,0,2,1},
-	{1,0,1,1,1,1,1,1,1,0,3,1},
-	{1,0,1,3,3,0,0,0,3,0,0,1},
-	{1,0,1,0,1,1,1,0,3,1,0,1},
-	{1,0,1,0,1,3,1,0,0,3,0,3},
-	{1,0,0,0,1,0,1,1,0,1,0,3},
-	{1,0,1,1,1,0,1,3,0,1,0,3},
-	{1,0,1,1,0,0,0,0,0,3,0,3},
-	{1,0,0,0,0,1,1,1,3,3,0,1},
-	{1,3,0,1,0,0,0,0,0,3,0,1},
-	{1,3,0,1,1,1,1,1,0,3,0,1},
-	{1,3,0,0,0,0,1,3,3,1,0,1},
-	{1,1,1,0,1,0,0,0,0,0,0,1},
-	{1,0,0,0,1,0,1,3,3,1,0,1},
-	{1,1,1,1,1,1,1,1,1,1,1,1},
-};
-
-
-uint8_t ballSprite[CELL_SIZE][CELL_SIZE] = {
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0},
-  {0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
-  {0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
-  {0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-};
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void update_ball_tile_position(Ball *ball) {
-    ball->tile_x = (uint8_t)(ball->x_px / CELL_SIZE);
-    ball->tile_y = (uint8_t)(ball->y_px / CELL_SIZE);
-}
 void draw_cell(uint8_t tile_x, uint8_t tile_y, uint32_t color)
 {
     BSP_LCD_SetTextColor(color);
@@ -203,6 +107,7 @@ void draw_ballSprite(float x_px, float y_px)
 	    }
 	}
 }
+
 void draw_maze(const uint8_t maze_data[MAZE_HEIGHT][MAZE_WIDTH])
 {
 	for (int y = 0; y < MAZE_HEIGHT; y++) {
@@ -229,21 +134,12 @@ void wait_for_user_button(void) {
     HAL_Delay(200);
 }
 
-void reset_ball_position(Ball *ball) {
-    ball->x_px = 1 * CELL_SIZE + CELL_SIZE / 2;
-    ball->y_px = 1 * CELL_SIZE + CELL_SIZE / 2;
-    update_ball_tile_position(ball);
-}
-
-
 float* Gyro_CountBias(float sensordata[]);
 int __io_putchar(int ch);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-Ball ball = {.x_px = 1 * CELL_SIZE + CELL_SIZE / 2, .y_px = 1 * CELL_SIZE + CELL_SIZE / 2,};
-const uint8_t (*currMaze)[MAZE_WIDTH] = maze1;
 
 /* USER CODE END 0 */
 
@@ -295,7 +191,7 @@ int main(void)
 
   float sensordata[6]; //0 gyro_x, 1 gyro_y, 2 gyro_z, 3 acc_x, 4 acc_y, 5 acc_z
   float roll=0, pitch=0;
-  float acc_roll, acc_pitch, alpha = 0.99f;
+  float acc_roll, acc_pitch, alpha = 0.985f;
   float dt = 0.01f; // 10ms loop
   float* gyro_bias; gyro_bias = Gyro_CountBias(sensordata);   // kompensacja odchyleń żyro
 
@@ -332,31 +228,27 @@ int main(void)
 	  acc_roll  = atan2f( acc_y, acc_z)							   * 180.0f / M_PI;
 
 	  if(abs(gyro_y) > NOISE_THRESHOLD) roll  = alpha * (roll  + gyro_y * dt) + (1 - alpha) * acc_roll;
+	  else roll = 0;
 	  if(abs(gyro_x) > NOISE_THRESHOLD) pitch = alpha * (pitch + gyro_x * dt) + (1 - alpha) * acc_pitch;
-
-	  printf("gyro_x: [%f], \tgyro_y: [%f], \tgyro_z: [%f]\r\n", gyro_x, gyro_y, gyro_z);
-	  printf("acc_x: [%f], \tacc_y: [%f], \t acc_z: [%f]\r\n", acc_x, acc_y, acc_z);
-	  printf("roll: [%f], pitch: [%f]\r\n", roll, pitch);
-
-//	  BSP_LCD_SetTextColor(LCD_COLOR_CYAN);
-//	  BSP_LCD_DisplayStringAtLine(1, (uint8_t *)"text");
+	  else pitch = 0;
 
 	  /*
-	   * ###########################
-	   * ####  GAME STATE CHECK  ###
-	   * ###########################
+	   * ############################
+	   * ####  GAME STATE CHECK  ####
+	   * ############################
 	   * */
 
 	  currTile = currMaze[ball.tile_y][ball.tile_x];
 
-	  if (currTile == 2) {
-	      currentGameState = GAME_WIN;
-	  }
-	  else if(currTile == 3){
+	  switch(currTile){
+	  case 2:
+		  currentGameState = GAME_WIN;
+		  break;
+	  case 3:
 		  currentGameState = GAME_LOSE;
-	  }
-	  else{
-	  	  currentGameState = GAME_RUNNING;
+		  break;
+	  default:
+		  currentGameState = GAME_RUNNING;
 	  }
 
 	  /*
@@ -364,11 +256,11 @@ int main(void)
 	   * ##### GAME LOGIC #####
 	   * ######################
 	   * */
-
+	  float vx, vy;
 	  if(currentGameState == GAME_RUNNING){
 		 draw_maze(currMaze);
-		 float vx = roll * SPEED;
-		 float vy = (-1)*pitch * SPEED;
+		 vx = roll * SPEED;
+		 vy = pitch * SPEED;
 
 		 float new_x = ball.x_px + vx * dt;
 		 int next_tile_x = (int)(new_x / CELL_SIZE);
@@ -387,6 +279,7 @@ int main(void)
 		 draw_ballSprite(ball.x_px, ball.y_px);
 	  }
 	  else if(currentGameState == GAME_LOSE){
+		  vx = 0; vy = 0;
 		  BSP_LCD_Clear(LCD_COLOR_RED);
 		  BSP_LCD_SetTextColor(LCD_COLOR_RED);
 		  BSP_LCD_DisplayStringAt(0, LINE(5), (uint8_t *)"YOU LOSE!", CENTER_MODE);
@@ -397,6 +290,7 @@ int main(void)
 		  currentGameState = GAME_RUNNING;
 	  }
 	  else{
+		  vx = 0; vy = 0;
 		  BSP_LCD_Clear(LCD_COLOR_GREEN);
 		  BSP_LCD_SetTextColor(LCD_COLOR_GREEN);
 		  BSP_LCD_DisplayStringAt(0, LINE(5), (uint8_t *)"YOU WIN!", CENTER_MODE);
